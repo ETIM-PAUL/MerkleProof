@@ -4,13 +4,19 @@ import csv from "csv-parser";
 import * as fs from "fs";
 import {utils} from "ethers";
 import path from "path";
-import {Data} from "./hashData";
 
 //This might not be used
 
 export interface AddressProof {
 	leaf: string;
 	proof: string[];
+}
+
+export interface Data {
+	hash?: string;
+	address: string;
+	amount: number;
+	airdropId?: number;
 }
 
 const csvfile = path.join(__dirname, "claimersData/data.csv");
