@@ -2,94 +2,48 @@
 pragma solidity 0.8.21;
 
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import "./ERC20Interface.sol";
+import {ERC20} from "solmate/src/tokens/ERC20.sol";
 
-contract AirDrop {
-    event TokenAirdropCreated(
-        string name,
-        uint256 id,
-        address airDropTokenAddress
-    );
-    event TokenClaimed(uint256 airdropID, address account, uint256 amount);
+contract AirDrop is ERC20 {
+    event TokenClaimed(address account, uint256 amount);
 
-    struct AirdropTokenDetails {
-        string airDropName;
-        bytes32 merkleRoot;
-        address airDropTokenAddress;
-        uint approvedAmount;
-        uint maxUsers;
-        uint claims;
-    }
-
-    mapping(uint => AirdropTokenDetails) allTokens;
-    mapping(address => mapping(uint => bool)) hasAddressClaim;
+    mapping(address => bool) hasAddressClaim;
     mapping(uint => bool) isAirdropExist;
 
-    uint airDropCounter;
+    bytes32 merkleRoot;
 
-    modifier onlyUnclaimedAddress(address caller, uint airDropId) {
-        require(
-            !hasAddressClaim[caller][airDropId],
-            "Only Unclaimed Addresses"
-        );
+    constructor(bytes32 _merkleRoot) ERC20("Joe Tokens", "JOE", 18) {
+        merkleRoot = _merkleRoot;
+    }
+
+    modifier onlyUnclaimedAddress(address caller) {
+        require(!hasAddressClaim[caller], "Only Unclaimed Addresses");
         _;
     }
 
-    function createAirdrop(
-        string memory _airDropName,
-        bytes32 _merkleRoot,
-        address _airDropTokenAddress,
-        uint _max
-    ) external returns (uint airDropId) {
-        airDropCounter++;
-        AirdropTokenDetails storage airdrop = allTokens[airDropCounter];
-        airdrop.airDropName = _airDropName;
-        airdrop.merkleRoot = _merkleRoot;
-        airdrop.airDropTokenAddress = _airDropTokenAddress;
-        airdrop.maxUsers = _max;
-        airdrop.claims = 0;
-        isAirdropExist[airDropCounter] = true;
-        emit TokenAirdropCreated(
-            _airDropName,
-            airDropCounter,
-            _airDropTokenAddress
-        );
-        return (airDropCounter);
-    }
-
-    function isTokenClaimed(
-        address _user,
-        uint256 _airdropID
-    ) public view returns (bool) {
-        return hasAddressClaim[_user][_airdropID];
+    function isTokenClaimed(address _user) public view returns (bool) {
+        return hasAddressClaim[_user];
     }
 
     function claimToken(
-        uint256 _airdropId,
+        address _address,
         uint256 _amount,
         bytes32[] calldata _merkleProof
-    )
-        external
-        onlyUnclaimedAddress(msg.sender, _airdropId)
-        returns (bool claimed)
-    {
-        AirdropTokenDetails storage airdrop = allTokens[_airdropId];
-        require(airdrop.maxUsers > 0, "Airdrop is not created yet");
+    ) external onlyUnclaimedAddress(_address) returns (bool claimed) {
+        require(_address != address(0), "No Zero Address");
+        require(_amount > 0, "Amount must be greater than zero");
+
         // Verify the merkle proof.
-        bytes32 node = keccak256(abi.encodePacked(msg.sender, _amount));
-        bytes32 merkleRoot = airdrop.merkleRoot;
-        address token = airdrop.airDropTokenAddress;
+        bytes32 node = keccak256(abi.encodePacked(_address, _amount));
         require(
             MerkleProof.verify(_merkleProof, merkleRoot, node),
             "MerkleDistributor: Invalid proof."
         );
 
         // Mark it claimed and send the token.
-        hasAddressClaim[msg.sender][_airdropId] = true;
-        ERC20Interface(token).transferFrom(address(this), msg.sender, _amount);
-        airdrop.claims++;
-        //only emit when successful
+        hasAddressClaim[_address] = true;
         claimed = true;
-        emit TokenClaimed(_airdropId, msg.sender, _amount);
+        _mint(_address, _amount);
+        emit TokenClaimed(msg.sender, _amount);
     }
 }

@@ -16,21 +16,21 @@ export interface AddressProof {
 
 export interface Data {
  // hash?: string;
- address: string;
  amount?: number;
+ address: string;
 }
 
 const csvfile = path.join(__dirname, "claimersData/data.csv");
 
 async function generateMerkleTree(csvFilePath: string): Promise<void> {
- const data: Data[] = [];
-
- // Read the CSV file and store the data in an array
- await new Promise((resolve, reject) => {
-  fs
-   .createReadStream(csvFilePath)
-   .pipe(csv())
-   .on("data", (row: Data) => {
+  const data: Data[] = [];
+  
+  // Read the CSV file and store the data in an array
+  await new Promise((resolve, reject) => {
+    fs
+    .createReadStream(csvFilePath)
+    .pipe(csv())
+    .on("data", (row: Data) => {
     data.push(row);
    })
    .on("end", resolve)
@@ -40,12 +40,12 @@ async function generateMerkleTree(csvFilePath: string): Promise<void> {
  let leaves: string[] = [];
  // Hash the data using the Solidity keccak256 function
  for (const row of data) {
-  leaf = solidityPackedKeccak256(
-   //    ["address", "uint256", "uint256", "bytes32"],
-   //    [row.address, row.itemID, row.amount, row.hash]
-   ["address", "uint256"],
-   [row.address, row.amount]
-  );
+   leaf = solidityPackedKeccak256(
+     //    ["address", "uint256", "uint256", "bytes32"],
+     //    [row.address, row.itemID, row.amount, row.hash]
+     ["address", "uint256"],
+     [Object.values(row)[0], row.amount]
+     );
   leaves.push(leaf);
  }
 
@@ -54,7 +54,7 @@ async function generateMerkleTree(csvFilePath: string): Promise<void> {
  const addressProofs: { [address: string]: AddressProof } = {};
  data.forEach((row, index) => {
   const proof = tree.getProof(leaves[index]);
-  addressProofs[row.address] = {
+  addressProofs[Object.values(row)[0]] = {
    leaf: "0x" + leaves[index].toString(),
    proof: proof.map((p) => "0x" + p.data.toString("hex")),
   };
@@ -74,7 +74,7 @@ async function generateMerkleTree(csvFilePath: string): Promise<void> {
  // Write a JSON object mapping addresses to data to a file
  const addressData: { [address: string]: Data } = {};
  data.forEach((row) => {
-  addressData[row.address] = row;
+  addressData[Object.values(row)[0]] = row;
  });
 
  await new Promise<void>((resolve, reject) => {
